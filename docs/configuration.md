@@ -9,6 +9,10 @@ specify path to configuration and `--configuration-key` specifies key
 in this configuration. An example of configuration can be found in
 file `lib/configuration.yaml`.
 
+## Prerequisites
+
+* Read about [VSS certificates](https://cardanodocs.com/technical/pvss/#vss-certificate).
+
 ## Genesis
 
 Configuration is used to specify genesis data used by the node. It is
@@ -40,8 +44,10 @@ genesis data.
   which bootstrap stakeholders should be used, what should be total
   balance, etc. When node is launched with spec as genesis, it
   automatically constructs genesis data from it. This way to specify
-  genesis is supposed to be used for everything except
-  mainnet. Example:
+  genesis is supposed to be used for testing clusters. It's
+  questionable whether it should be used for testnet and currently we
+  can't use it for testnet for performance reasons. We don't use it
+  for mainnet (and we won't have other mainnets). Example:
 
 ```
     genesis:
@@ -238,6 +244,26 @@ instead.
 Put this data into `vssCerts` map. There should be as many VSS
 certificates as there are core nodes (i. e. do it for each secret).
 
+## Core configuration (besides genesis)
+
+**TODO**
+
+## Node configuration
+
+Node configuration is accessible by `<configuration-key>.node` key. It
+has the following values:
+
+* `networkDiameter` (seconds) — how much time it takes to propagate a
+  block across the network. In practice this value determines when
+  slot leaders create a block (it's done `networkDiameter` seconds
+  before the end of the slot).
+* `mdNoBlocksSlotThreshold` — number of slots after which node will
+  actively requests blocks if it doesn't receive any blocks without
+  requesting them (in normal cases blocks are announced). Should be
+  less than `2 · k`.
+* `recoveryHeadersMessage` — how many headers will be sent in a
+  batch. This value should be greater than `k`.
+
 ## Our configurations
 
 ### `mainnet` configurations
@@ -268,10 +294,10 @@ depend on particular task:
 
 * `slotDuration`, `k` are parameters of the protocol, set to
   reasonable defaults, but sometimes we may want to use different
-  values.
-* `networkDiameter`, `mdNoBlocksSlotThreshold`,
-  `recoveryHeadersMessage` depend on `k`, comments are provided in
-  configuration file.
+  values. Reminder: number of slots in an epoch is `10 · k`.
+* `mdNoBlocksSlotThreshold` and
+  `recoveryHeadersMessage` depend on `k`. Set their values properly if
+  you modify `k`. See [node configuration](#node-configuration).
 * `genesis.spec.initializer.testnetInitializer.richmen` is basically
   the number of core nodes. Should be the same as the number of core
   nodes deployed.
