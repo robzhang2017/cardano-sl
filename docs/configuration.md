@@ -21,13 +21,17 @@ file `lib/configuration.yaml`.
   Cardano-SL addresses and initially each address has this amount of
   ADA (as balance, not stake).
 * [Bootstrap era and stake locking](https://cardanodocs.com/timeline/bootstrap/).
+* SSC is Shared Seed Computation, it's performed by rich nodes (with
+  big stake) to agree upon a seed which will be used for leaders
+  selection for an epoch.
 
 ## Genesis
 
 In Cardano-SL we need to specify which addresses initially have ADA
 and how much. It's traditionally called _genesis block_. In Cardano-SL
 we also have various parameters of the algorithm along with initial
-balances.
+balances. The hash of this data (in canonical JSON format) is used as
+the parent of the very first real block.
 
 ### Naming conventions
 
@@ -81,6 +85,9 @@ genesis data.
         hash: 5f20df933584822601f9e3f8c024eb5eb252fe8cefb24d1317dc3d432e940ebb
 ```
 
+  The format of `mainnet-genesis.json` is described
+  in [Genesis data format](#genesis-data-format).
+
 * Another way is to provide a specification how to generate genesis
   data. It allows one to specify how many nodes should have stake,
   which bootstrap stakeholders should be used, what should be total
@@ -89,7 +96,152 @@ genesis data.
   genesis is supposed to be used for testing clusters. It's
   questionable whether it should be used for testnet and currently we
   can't use it for testnet for performance reasons. We don't use it
-  for mainnet (and we won't have other mainnets). Example:
+  for mainnet (and we won't have other mainnets).
+  See [Genesis spec format](#genesis-spec-format) for details.
+
+### Genesis data format
+
+Let's start with an example:
+
+```
+{
+    "avvmDistr": {
+        "0cAZzmtB2CUjlsMULb30YcBrocvK7VhQjUk--MyY2_Q=": "8333333000000",
+        ...
+        "zE56EfVAvv0XekVyBDGh2Iz1QT6X38YxlcBYO20hqa0=": "1773135000000"
+    },
+    "blockVersionData": {
+        "heavyDelThd": "300000000000",
+        "maxBlockSize": "2000000",
+        "maxHeaderSize": "2000000",
+        "maxProposalSize": "700",
+        "maxTxSize": "4096",
+        "mpcThd": "20000000000000",
+        "scriptVersion": 0,
+        "slotDuration": "20000",
+        "softforkRule": {
+            "initThd": "900000000000000",
+            "minThd": "600000000000000",
+            "thdDecrement": "50000000000000"
+        },
+        "txFeePolicy": {
+            "multiplier": "43946000000",
+            "summand": "155381000000000"
+        },
+        "unlockStakeEpoch": "18446744073709551615",
+        "updateImplicit": "10000",
+        "updateProposalThd": "100000000000000",
+        "updateVoteThd": "1000000000000"
+    },
+    "bootStakeholders": {
+        "0d916567f96b6a65d204966e6aab5fbd242e56c321833f8ba5d607da": 1,
+        "4bd1884f5ce2231be8623ecf5778a9112e26514205b39ff53529e735": 1,
+        "5f53e01e1366aeda8811c2a630f0e037077a7b651093d2bdc4ef7200": 1,
+        "ada3ab5c69b945c33c15ca110b444aa58906bf01fcfe55d8818d9c49": 1
+    },
+    "ftsSeed": "736b6f766f726f64612047677572646120626f726f64612070726f766f646120",
+    "nonAvvmBalances": {},
+    "protocolConsts": {
+        "k": 2160,
+        "protocolMagic": 60987900,
+        "vssMaxTTL": 6,
+        "vssMinTTL": 2
+    },
+    "heavyDelegation": {
+        "c6c7fb227037a1719b9d871ea49b6039325aeb293915da7db9620e3f": {
+            "cert": "0f2ff9d1f071793dbd90fce8d47e96a09b594ee6dd00a4bac9664e4bd6af89830035ec921698b774c779eb1b6a2772d3d6ae37e630c06c75fbfecd02a6410a02",
+            "delegatePk": "I07+5HIUW0Lkq0poMMzGziuILwxSyTJ4lMSsoQz4HZunD5Xsx3MfBZWc4l+206lUOFaU+spdJg7MkmFKBoVV0g==",
+            "issuerPk": "AZzlT+pC5M4xG+GuRHJEXS+isikmVBorTqOyjRDGUQ+Lst9fn1zQn5OGKSXK29G2dn7R7JCugfcUebr0Dq7wPw==",
+            "omega": 1
+        }
+    },
+    "startTime": 1505621332,
+    "vssCerts": {
+        "0d916567f96b6a65d204966e6aab5fbd242e56c321833f8ba5d607da": {
+            "expiryEpoch": 1,
+            "signature": "396fe505f4287f832fd26c1eba1843a49f3d23b64d664fb3c8a2f25c8de73ce6f2f4cf37ec7fa0fee7750d1d6c55e1b07e1018ce0c6443bacdb01fb8e15f1a0f",
+            "signingKey": "ohsV3RtEFD1jeOzKwNulmMRhBG2RLdFxPbcSGbkmJ+xd/2cOALSDahPlydFRjd15sH0PkPE/zTvP4iN8wJr/hA==",
+            "vssKey": "WCECtpe8B/5XPefEhgg7X5veUIYH/RRcvXbz6w7MIJBwWYU="
+        },
+        ...
+    }
+}
+```
+
+Section `"avvmDistr"` contains AVVM addresses with corresponding coins
+values (lovelaces).
+
+Section `"blockVersionData"` contains fundamental blockchain-related values:
+
+*  `"heavyDelThd"` - heavyweight delegation threshold,
+*  `"maxBlockSize"` - maximum size of block, in bytes,
+*  `"maxHeaderSize"` - maximum size of block's header, in bytes,
+*  `"maxProposalSize"` - maximum size of Cardano SL update proposal, in bytes,
+*  `"maxTxSize"` - maximum size of transaction, in bytes,
+*  `"mpcThd"` - threshold for participation in SSC (shared seed computation),
+*  `"scriptVersion"` - script version,
+*  `"slotDuration"` - slot duration, in microseconds,
+*  `"softforkRule"` - rules for softfork:
+   *  `"initThd"` - initial threshold, right after proposal is confirmed,
+   *  `"minThd"` - minimal threshold (i.e. threshold can't become less than this one),
+   *  `"thdDecrement"` - theshold will be decreased by this value after each epoch,
+*  `"txFeePolicy"` - transaction fee policy's values,
+*  `"unlockStakeEpoch"` - unlock stake epoch after which bootstrap era ends,
+*  `"updateImplicit"` - update implicit period, in slots,
+*  `"updateProposalThd"` - threshold for Cardano SL update proposal,
+*  `"updateVoteThd"` - threshold for voting for Cardano SL update proposal.
+
+Please note that values of all thresholds are multiplied by `10⁻¹⁵`. So if particular threshold is
+defined as `X`, its actual value is `X * 10⁻¹⁵`.
+
+Section `"bootStakeholders"` contains bootstrap era stakeholders'
+identifiers (`StakeholderId`s) with corresponding weights.
+
+Field `"ftsSeed"` contains seed value required for Follow-the-Satoshi
+mechanism (hex-encoded).
+
+Section `"protocolConsts"` contains basic protocol constants:
+
+*  `"k"` - security parameter from the paper,
+*  `"protocolMagic"` - protocol magic value (it's included into a
+   serialized block and header and it's part of signed data, so when protocol
+   magic is changed, all signatures become invalid) used to
+   distinguish different networks,
+*  `"vssMaxTTL"` - VSS certificates maximum timeout to live (number of epochs),
+*  `"vssMinTTL"` - VSS certificates minimum timeout to live (number of epochs).
+
+Section `"heavyDelegation"` contains an information about heavyweight delegation:
+
+*  `"cert"` - delegation certificate,
+*  `"delegatePk"` - delegate's public key,
+*  `"issuerPk"` - stakeholder's (issuer's) public key,
+*  `"omega"` - index of epoch the block PSK is announced in, it is
+   needed for replay attack prevention, can be set to arbitrary value
+   in genesis.
+
+Keys in `heavyDelegation` dictionary are `StakeholderId`s of
+certificates' issuers. They must be consistent with `issuerPk` values.
+
+Field `"startTime"` is the timestamp of the 0-th slot.  Ideally it
+should be few seconds later than the cluster actually starts. If it's
+significantly later, nodes won't be doing anything for a while. If
+it's slightly before the actual starts, some slots will be missed, but
+it shouldn't be critical as long as less than `k` slots are missed.
+
+Section "vssCerts" contains VSS certificates:
+
+*  `"expiryEpoch"` - index of epoch until which (inclusive) the
+   certificate is valid;
+*  `"signature"` - signature of certificate,
+*  `"signingKey"` - key used for signing,
+*  `"vssKey"` - VSS public key.
+
+Keys in `vssCerts` dictionary are `StakeholderId`s of
+certificates' issuers. They must be consistent with `signingKey` values.
+
+### Genesis spec format
+
+Let's again start with an example:
 
 ```
     genesis:
@@ -129,7 +281,7 @@ genesis data.
               a: 155381 # absolute minimal fees per transaction
               b: 43.946 # additional minimal fees per byte of transaction size
           unlockStakeEpoch: 18446744073709551615 # last epoch (maxBound @Word64)
-        protocolConstants: &dev_core_genesis_spec_protocolConstants
+        protocolConstants:
           k: 2
           protocolMagic: 55550001
           vssMinTTL: 2
@@ -138,6 +290,19 @@ genesis data.
         heavyDelegation: {}
         avvmDistr: {}
 ```
+
+Most values are the same as in _genesis data_. It's easier to write about
+differences:
+1. Genesis spec has `initializer` value not present in genesis
+   data. See
+   [Balances, stakes, initializer](#balances-stakes-initializer) for details.
+2. Thesholds are specified as floating-point numbers.
+3. `ftsSeed` is base64-encoded, not hex-encoded.
+4. `txFeePolicy` is specified slightly differently. The comments in
+   the example explain the format pretty well. Note that the values
+   are lovelaces, not ADA.
+5. TODO: what about `heavyDelegation`?
+6. TODO: what about `avvmDistr`?
 
 ### Balances, stakes, initializer
 
@@ -265,7 +430,7 @@ There are some tools relevant to genesis data.
   data to files. Usage: `cardano-keygen --system-start 0
   --configuration-file <file> --configuration-key <key>
   generate-keys-by-spec --genesis-out-dir <dir>`. This command will
-  generate dump secrets to `<dir>`. To deploy a cluster you need keys
+  generate and dump secrets to `<dir>`. To deploy a cluster you need keys
   of core nodes. In case of devnet, just use `generate-keys-by-spec`
   to obtain these keys. They can be found in
   `keys-testnet/rich`. Workflow for testnet is described
@@ -275,10 +440,13 @@ There are some tools relevant to genesis data.
 * `cardano-node-simple` and `cardano-node` have command line option to
   dump genesis data (in JSON format). The option is
   `--dump-genesis-data-to genesis.json` (data will be dumped to
-  `genesis.json`). It can be used to verify generated balances, for
-  example.
+  `genesis.json`). It can be used to generate _genesis data_ from
+  _genesis spec_ if you want it to be used by nodes or just want to
+  verify generated data.
 
 ### Generating genesis for testnet
+
+**TODO**: likely outdated.
 
 There is `testnet_public_full` configuration which is almost suitable
 for testnet. The only values to be changed are inside
@@ -313,6 +481,14 @@ instead.
 Put this data into `vssCerts` map. There should be as many VSS
 certificates as there are core nodes (i. e. do it for each secret).
 
+### Generating genesis for mainnet
+
+**TODO**: we have some script and `README.md` in
+`scripts/prepare-genesis`. We probably will never need them anymore,
+but we need to preserve them to be able to review at any point for
+example. Probably that `README.md` should be moved to this section or
+to this folder (`docs/`).
+
 ## Core configuration (besides genesis)
 
 **TODO**
@@ -332,6 +508,8 @@ has the following values:
   less than `2 · k`.
 * `recoveryHeadersMessage` — how many headers will be sent in a
   batch. This value should be greater than `k`.
+
+**TODO**: describe the rest.
 
 ## Our configurations
 
