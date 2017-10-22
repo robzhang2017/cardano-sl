@@ -12,25 +12,67 @@ file `lib/configuration.yaml`.
 ## Prerequisites
 
 * Read about [VSS certificates](https://cardanodocs.com/technical/pvss/#vss-certificate).
+* You need to know the difference between
+  [balance and stake](https://cardanodocs.com/cardano/balance-and-stake/).
+* You need to know about AVVM. I don't know if it's described
+  somewhere, so briefly: there was vending process after which we have
+  a map from AVVM address (32 bytes, base64url encoded) to an integer
+  number (amount of ADA). AVVM addresses can be converted to
+  Cardano-SL addresses and initially each address has this amount of
+  ADA (as balance, not stake).
+* [Bootstrap era and stake locking](https://cardanodocs.com/timeline/bootstrap/).
 
 ## Genesis
+
+In Cardano-SL we need to specify which addresses initially have ADA
+and how much. It's traditionally called _genesis block_. In Cardano-SL
+we also have various parameters of the algorithm along with initial
+balances.
+
+### Naming conventions
+
+Traditionally all initial data is called _genesis block_. However, in
+Cardano-SL _genesis block_ has a different meaning: it's the first
+block in an epoch, as described in Ouroboros paper. There are many
+genesis blocks (one per epoch).
+
+For this reason we call the set of all initial balances, stakes and
+parameters _genesis data_ (and there is `GenesisData` type in Haskell
+code). Another term is _genesis spec_ (data type in Haskell is called
+`GenesisSpec`) which specifies how to create _genesis data_. See below
+for more details. When we say simply _genesis_ it usually means
+_genesis data_, the actual meaning is usually clear from the context.
+
+Note: we are not trying to force everyone to change standards and say
+_genesis data_ instead of _genesis block_ (though it kinda makes
+sense, because in Cardano-SL _genesis data_ is not a block, it
+consists of a bunch of different data). It's ok to use term _genesis
+block_ and usually the meaning will be clear from the context. But for
+historical reasons developers prefer to use term _genesis data_ to
+refer to the initial set of parameters and balances and _genesis
+block_ to refer to the first block in an epoch. It's enforced by names
+in code. It may be changed later.
+
+### How to specify genesis
 
 Configuration is used to specify genesis data used by the node. It is
 part of `core` configuration (it's accessible by key
 `<configuration-key>.core.genesis`). There are two ways to specify
 genesis data.
 
-* One way is to provide genesis data itself, stored in json
+* One way is to provide genesis data itself, stored in JSON
   format. Genesis data explicitly states balances of all addresses,
   all bootstrap stakeholders, heavyweight delegation certificates,
   etc. It makes it clearer which genesis is used, but it doesn't
   describe _how_ this genesis was constructed. Also it requires more
-  steps to create genesis data, than to create a spec. Current design
-  implies that this mechanism should be used only for mainnet where we
-  want to have full understanding of which addresses have which
-  stake. The format is demonstrated below. `hash` is the hash (Blake2b
-  256 bits) of canonically encoded `mainnet-genesis.json` file. It can
-  be computed manually using `scripts/js/genesis-hash.js` script.
+  steps to create genesis data, than to create a spec.  This mechanism
+  is used for mainnet (both production and staging) so that everyone
+  can open this file and see all balances (and everything else from
+  genesis data) at any time. It also will be used for testnet, at
+  least for the first one.  The format is demonstrated below. `hash`
+  is the hash (Blake2b 256 bits) of canonically encoded
+  `mainnet-genesis.json` file. It can be computed manually using
+  `scripts/js/genesis-hash.js` script.
 
 ```
     genesis:
@@ -97,11 +139,39 @@ genesis data.
         avvmDistr: {}
 ```
 
-### Initializer
+### Balances, stakes, initializer
 
-There are two substantially different types of genesis spec, with the
-difference in `initializer` value. Initializer can be either
-`testnetInitializer` or `mainnetInitializer`.
+In _genesis data_ there are two fields which determine balances:
+`avvmDistr` and `nonAvvmBalances`. The former is a map from AVVM
+addresses to balances, the latter is a map from Cardano-SL addresses
+to balances.
+
+Stakes are computed from balances based on `bootStakeholders`
+map. Keys in these map are `StakeholderId`s which will have stake and
+values are their weights (stake will be distributed proportionally to
+those weights).
+
+In _genesis spec_ there are two fields which determine balances and
+stakes: `avvmDistr` and `initializer`.
+
+`avvmDistr` is supposed to contain the result of vending (which can be
+found in `lib/configuration.yaml`, see `mainnet_avvmDistr`), but it
+also can be empty if you don't want need AVVM addresses.
+
+`initializer` can be either `testnetInitializer` or
+`mainnetInitializer`. There are several differences between these two
+(**TODO** it's not finalized).
+
+* `testnetInitializer` includes `testBalance` field which allows to
+  add entries to `nonAvvmBalances` and specify how many richmen should
+  exist.
+* **TODO** add more!
+* Also `mainnetInitializer` includes `startTime`, while for `testnetInitializer`
+  it should be passed from command line. It's not related to balances
+  and stakes, but should be mentioned as well.
+
+**TODO** The rest of this section is WIP, please skip
+to [System start time](#system-start-time).
 
 The key point of `testnetInitializer` is that it contains seed which
 is used to generate secret keys. It's quite convenient for testnet,
@@ -178,15 +248,14 @@ data. It's not clear whether it will be ever used again.
 
 ### System start time
 
-System start time is taken from configuration or command line
-option. It's taken from configuration if genesis is provided as
-genesis data (which always contains system start time) or if genesis
-is provided as genesis spec with `mainnetInitializer`. The reason why
-system start is part of `mainnetInitializer`, but not part of
-`testnetInitializer` is that mainnet is launched rarely (actually only
-once, but there is also staging), but other
-clusters are launched more often, and it's easier to change this value
-from CLI.
+System start time is taken from configuration or command line option
+(`--system-start`). It's taken from configuration if genesis is
+provided as genesis data (which always contains system start time) or
+if genesis is provided as genesis spec with `mainnetInitializer`. The
+reason why system start is part of `mainnetInitializer`, but not part
+of `testnetInitializer` is that mainnet is launched rarely (actually
+only once, but there is also staging), but other clusters are launched
+more often, and it's easier to change this value from CLI.
 
 ### Tools
 
