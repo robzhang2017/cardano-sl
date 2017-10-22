@@ -431,12 +431,9 @@ There are some tools relevant to genesis data.
   --configuration-file <file> --configuration-key <key>
   generate-keys-by-spec --genesis-out-dir <dir>`. This command will
   generate and dump secrets to `<dir>`. To deploy a cluster you need keys
-  of core nodes. In case of devnet, just use `generate-keys-by-spec`
-  to obtain these keys. They can be found in
-  `keys-testnet/rich`. Workflow for testnet is described
-  below. Workflow for mainnet (not sure if someone will ever need it)
-  is described in `scripts/prepare-genesis` (**TODO** move it here
-  maybe?).
+  of core nodes. Just use `generate-keys-by-spec`
+  to obtain these keys if you have a spec with `testnetInitializer`.
+
 * `cardano-node-simple` and `cardano-node` have command line option to
   dump genesis data (in JSON format). The option is
   `--dump-genesis-data-to genesis.json` (data will be dumped to
@@ -483,11 +480,12 @@ certificates as there are core nodes (i. e. do it for each secret).
 
 ### Generating genesis for mainnet
 
-**TODO**: we have some script and `README.md` in
+**TODO**: we have some scripts and `README.md` in
 `scripts/prepare-genesis`. We probably will never need them anymore,
 but we need to preserve them to be able to review at any point for
 example. Probably that `README.md` should be moved to this section or
-to this folder (`docs/`).
+to this folder (`docs/`). Some part of that `README.md` has been moved
+to this file already.
 
 ## Core configuration (besides genesis)
 
@@ -532,6 +530,24 @@ file for different keys.
   staging. `mainnet_dryrun_wallet_win64` and
   `mainnet_dryrun_wallet_macos64` are for staging wallets.
 
+### `testnet` configurations
+
+**Obsolete**
+
+There are two configurations for testnets. They are ready to be used,
+except `bootStakeholders` and `vssCerts`. Testnet genesis preparation
+is described above. Bootstrap stakeholders and vss certificates in
+`lib/configuration.yaml` are derived from secret keys from
+`secrets/testnet/`. Since they are publicly avaiable, they shouldn't
+be used for real testnet. Note that `vssCerts` differ even though
+secret keys are same. That's because certificates validity depends on
+protocol magic.
+
+**Sketch**
+
+Workflow for testnet: modify `seed`, dump keys, figure out system
+start, dump genesis data, use it.
+
 ### `devnet` configuration
 
 There is a configuration called `devnet` which should be used to setup
@@ -548,17 +564,6 @@ depend on particular task:
 * `genesis.spec.initializer.testnetInitializer.richmen` is basically
   the number of core nodes. Should be the same as the number of core
   nodes deployed.
-
-### `testnet` configurations
-
-There are two configurations for testnets. They are ready to be used,
-except `bootStakeholders` and `vssCerts`. Testnet genesis preparation
-is described above. Bootstrap stakeholders and vss certificates in
-`lib/configuration.yaml` are derived from secret keys from
-`secrets/testnet/`. Since they are publicly avaiable, they shouldn't
-be used for real testnet. Note that `vssCerts` differ even though
-secret keys are same. That's because certificates validity depends on
-protocol magic.
 
 ### Other configurations
 
