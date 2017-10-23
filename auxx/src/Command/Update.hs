@@ -13,9 +13,7 @@ import           Universum
 import qualified Data.ByteString.Lazy     as BSL
 import qualified Data.HashMap.Strict      as HM
 import           Data.List                ((!!))
-import           Data.Time.Units          (convertUnit)
 import           Formatting               (sformat, string, (%))
-import           Serokell.Util            (sec)
 import           System.Wlog              (logDebug)
 
 import           Pos.Binary               (Raw)
@@ -95,17 +93,17 @@ propose sendActions ProposeUpdateParams{..} = do
     let BlockVersionData {..} = genesisBlockVersionData
     let bvm =
             BlockVersionModifier
-            { bvmScriptVersion     = Just puScriptVersion
-            , bvmSlotDuration      = Just $ convertUnit (sec puSlotDurationSec)
-            , bvmMaxBlockSize      = Just puMaxBlockSize
-            , bvmMaxHeaderSize     = Just bvdMaxHeaderSize
-            , bvmMaxTxSize         = Just bvdMaxTxSize
-            , bvmMaxProposalSize   = Just bvdMaxProposalSize
-            , bvmMpcThd            = Just bvdMpcThd
-            , bvmHeavyDelThd       = Just bvdHeavyDelThd
-            , bvmUpdateVoteThd     = Just bvdUpdateVoteThd
-            , bvmUpdateProposalThd = Just bvdUpdateProposalThd
-            , bvmUpdateImplicit    = Just bvdUpdateImplicit
+            { bvmScriptVersion     = Nothing
+            , bvmSlotDuration      = Nothing
+            , bvmMaxBlockSize      = Nothing
+            , bvmMaxHeaderSize     = Nothing
+            , bvmMaxTxSize         = Just puMaxTxSize
+            , bvmMaxProposalSize   = Just puMaxProposalSize
+            , bvmMpcThd            = Nothing
+            , bvmHeavyDelThd       = Nothing
+            , bvmUpdateVoteThd     = Nothing
+            , bvmUpdateProposalThd = Nothing
+            , bvmUpdateImplicit    = Nothing
             , bvmSoftforkRule      = Nothing
             , bvmTxFeePolicy       = Nothing
             , bvmUnlockStakeEpoch  = Nothing
