@@ -564,18 +564,18 @@ computeTxFee utxo outputs = do
 -- Stabilisation is simple iterative algorithm which performs
 -- @ fee <- minFee( tx(fee) ) @ per iteration step.
 -- It does *not* guarantee to find minimal possible fee, but is expected
--- to converge in O(|utxoAddrs|) steps, where @ utxoAddrs @ is a set of addresses
+-- to converge in O(|utxo|) steps, where @ utxo @ a set of addresses
 -- encountered in utxo.
 --
 -- Alogrithm consists of two stages:
 --
 -- 1. Iterate until @ fee_{i+1} <= fee_i @.
--- It can last for no more than @ ~2 * |utxoAddrs| @ iterations. Really, let's
+-- It can last for no more than @ ~2 * |utxo| @ iterations. Really, let's
 -- consider following cases:
 --
 --     * Number of used input addresses increased at i-th iteration, i.e.
 --       @ |inputs(tx(fee_i))| > |inputs(tx(fee_{i-1}))| @,
---       which can happen no more than |utxoAddrs| times.
+--       which can happen no more than |utxo| times.
 --
 --     * Number of tx input addresses stayed the same, i.e.
 --       @ |inputs(tx(fee_i))| = |inputs(tx(fee_{i-1}))| @.
@@ -595,9 +595,9 @@ computeTxFee utxo outputs = do
 --       size of single input is much greater than any fluctuations of
 --       remainder size (in bytes).
 --
--- In total, case (1) occurs no more than |utxoAddrs| times, case (2) is always
+-- In total, case (1) occurs no more than |utxo| times, case (2) is always
 -- followed by case (1), and case (3) terminates current stage immediatelly,
--- thus stage 1 takes no more than, approximatelly, @ 2 * |utxoAddrs| @ iterations.
+-- thus stage 1 takes no more than, approximatelly, @ 2 * |utxo| @ iterations.
 --
 -- 2. Once we find such @ i @ for which @ fee_{i+1} <= fee_i @, we can return
 -- @ tx(fee_i) @ as answer, but it may contain overestimated fee (which is still
