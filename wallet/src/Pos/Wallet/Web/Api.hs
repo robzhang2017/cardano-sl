@@ -68,8 +68,8 @@ import           Control.Lens               (from)
 import           Control.Monad.Catch        (try)
 import           Data.Reflection            (Reifies (..))
 import           Servant.API                ((:<|>), (:>), Capture, Delete, Get, JSON,
-                                             Post, Put, QueryParam, ReflectMethod (..),
-                                             ReqBody, Verb)
+                                             Post, Put, QueryFlag, QueryParam,
+                                             ReflectMethod (..), ReqBody, Verb)
 import           Servant.Server             (HasServer (..))
 import           Servant.Swagger.UI         (SwaggerSchemaUI)
 import           Universum
@@ -267,6 +267,7 @@ type NewPayment =
     :> CCapture "from" CAccountId
     :> Capture "to" (CId Addr)
     :> Capture "amount" Coin
+    :> QueryFlag "ungrouped"
     :> WRes Post CTx
 
 type TxFee =
@@ -275,6 +276,7 @@ type TxFee =
     :> CCapture "from" CAccountId
     :> Capture "to" (CId Addr)
     :> Capture "amount" Coin
+    :> QueryFlag "ungrouped"
     :> WRes Get CCoin
 
 type UpdateTx =

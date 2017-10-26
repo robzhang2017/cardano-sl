@@ -1,12 +1,16 @@
-{-# LANGUAGE TypeFamilies  #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE TypeOperators       #-}
 
 -- | Pure functions for operations with transactions
 
 module Pos.Client.Txp.Util
        (
+       -- * Tx creation params
+         UseGroupedInputs (..)
+
        -- * Tx creation
-         TxCreateMode
+       , TxCreateMode
        , makeAbstractTx
        , runTxCreator
        , makePubKeyTx
@@ -141,6 +145,10 @@ isCheckedTxError = \case
 -- Tx creation
 -----------------------------------------------------------------------------
 
+-- | Whether addresses can be spent entirely only.
+newtype UseGroupedInputs = UseGroupedInputs Bool
+    deriving (Show, Eq)
+
 -- | Mode for creating transactions. We need to know fee policy.
 type TxDistrMode m
      = ( MonadGState m
@@ -172,7 +180,8 @@ makeAbstractTx mkWit txInputs outputs = TxAux tx txWitness
 -- | Datatype which contains all data from DB which is necessary
 -- to create transactions
 data TxCreatorData = TxCreatorData
-    { _tcdFeePolicy    :: !TxFeePolicy
+    { _tcdFeePolicy        :: !TxFeePolicy
+    , _tcdUseGroupedInputs :: !UseGroupedInputs
     }
 
 makeLenses ''TxCreatorData
@@ -182,10 +191,12 @@ type TxCreator m = ReaderT TxCreatorData (ExceptT TxError m)
 
 runTxCreator
     :: TxDistrMode m
-    => TxCreator m a
+    => UseGroupedInputs
+    -> TxCreator m a
     -> m (Either TxError a)
-runTxCreator action = runExceptT $ do
+runTxCreator useGroupedInputs action = runExceptT $ do
     _tcdFeePolicy <- bvdTxFeePolicy <$> gsAdoptedBVData
+    let _tcdUseGroupedInputs = useGroupedInputs
     runReaderT action TxCreatorData{..}
 
 -- | Like 'makePubKeyTx', but allows usage of different signers
@@ -395,9 +406,13 @@ prepareTxRaw
     -> TxOutputs
     -> TxFee
     -> TxCreator m TxRaw
-prepareTxRaw =
-    let inputPicker = const groupedInputPicker plainInputPicker
-    in  prepareTxRawWithPicker inputPicker
+prepareTxRaw utxo outputs fee = do
+    UseGroupedInputs whetherGrouped <- view tcdUseGroupedInputs
+    let inputPicker =
+            if whetherGrouped
+            then groupedInputPicker
+            else plainInputPicker
+    prepareTxRawWithPicker inputPicker utxo outputs fee
 
 -- Returns set of tx outputs including change output (if it's necessary)
 mkOutputsWithRem
@@ -426,17 +441,20 @@ prepareInpsOuts utxo outputs addrData = do
 createGenericTx
     :: TxCreateMode m
     => (TxOwnedInputs TxOut -> TxOutputs -> TxAux)
+    -> UseGroupedInputs
     -> Utxo
     -> TxOutputs
     -> AddrData m
     -> m (Either TxError TxWithSpendings)
-createGenericTx creator utxo outputs addrData = runTxCreator $ do
-    (inps, outs) <- prepareInpsOuts utxo outputs addrData
-    pure (creator inps outs, map fst inps)
+createGenericTx creator groupInputs utxo outputs addrData =
+    runTxCreator groupInputs $ do
+        (inps, outs) <- prepareInpsOuts utxo outputs addrData
+        pure (creator inps outs, map fst inps)
 
 createGenericTxSingle
     :: TxCreateMode m
     => (TxInputs -> TxOutputs -> TxAux)
+    -> UseGroupedInputs
     -> Utxo
     -> TxOutputs
     -> AddrData m
@@ -447,14 +465,15 @@ createGenericTxSingle creator = createGenericTx (creator . map snd)
 -- Currently used for HD wallets only, thus `HDAddressPayload` is required
 createMTx
     :: TxCreateMode m
-    => Utxo
+    => UseGroupedInputs
+    -> Utxo
     -> (Address -> SafeSigner)
     -> TxOutputs
     -> AddrData m
     -> m (Either TxError TxWithSpendings)
-createMTx utxo hdwSigners outputs addrData =
+createMTx groupInputs utxo hdwSigners outputs addrData =
     createGenericTx (makeMPubKeyTxAddrs hdwSigners)
-    utxo outputs addrData
+    groupInputs utxo outputs addrData
 
 -- | Make a multi-transaction using given secret key and info for
 -- outputs.
@@ -467,7 +486,7 @@ createTx
     -> m (Either TxError TxWithSpendings)
 createTx utxo ss outputs addrData =
     createGenericTxSingle (makePubKeyTx ss)
-    utxo outputs addrData
+    (UseGroupedInputs True) utxo outputs addrData
 
 -- | Make a transaction, using M-of-N script as a source
 createMOfNTx
@@ -479,7 +498,7 @@ createMOfNTx
     -> m (Either TxError TxWithSpendings)
 createMOfNTx utxo keys outputs addrData =
     createGenericTxSingle (makeMOfNTx validator sks)
-    utxo outputs addrData
+    (UseGroupedInputs True) utxo outputs addrData
   where
     ids = map fst keys
     sks = map snd keys
@@ -493,10 +512,14 @@ createRedemptionTx
     -> RedeemSecretKey
     -> TxOutputs
     -> m (Either TxError TxAux)
-createRedemptionTx utxo rsk outputs = runTxCreator $ do
-    TxRaw {..} <- prepareTxRaw utxo outputs (TxFee $ mkCoin 0)
-    let bareInputs = snd <$> trInputs
-    pure $ makeRedemptionTx rsk bareInputs trOutputs
+createRedemptionTx utxo rsk outputs =
+    runTxCreator whetherGroupedInputs $ do
+        TxRaw {..} <- prepareTxRaw utxo outputs (TxFee $ mkCoin 0)
+        let bareInputs = snd <$> trInputs
+        pure $ makeRedemptionTx rsk bareInputs trOutputs
+  where
+    -- always spend redeem address fully
+    whetherGroupedInputs = UseGroupedInputs False
 
 -----------------------------------------------------------------------------
 -- Fees logic

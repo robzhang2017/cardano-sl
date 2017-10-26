@@ -20,7 +20,8 @@ import           Pos.Aeson.WalletBackup           ()
 import           Pos.Client.Txp.Addresses         (MonadAddresses (..))
 import           Pos.Client.Txp.Balances          (getOwnUtxos)
 import           Pos.Client.Txp.History           (TxHistoryEntry (..))
-import           Pos.Client.Txp.Util              (computeTxFee, runTxCreator)
+import           Pos.Client.Txp.Util              (UseGroupedInputs (..), computeTxFee,
+                                                   runTxCreator)
 import           Pos.Communication                (SendActions (..), prepareMTx)
 import           Pos.Configuration                (HasNodeConfiguration)
 import           Pos.Core                         (Coin, HasConfiguration, addressF,
@@ -53,8 +54,7 @@ import           Pos.Wallet.Web.Pending           (mkPendingTx)
 import           Pos.Wallet.Web.State             (AddressLookupMode (Ever, Existing))
 import           Pos.Wallet.Web.Util              (decodeCTypeOrFail,
                                                    getAccountAddrsOrThrow,
-                                                   getWalletAccountIds,
-                                                   getWalletAddrsSet)
+                                                   getWalletAccountIds, getWalletAddrsSet)
 
 newPayment
     :: MonadWalletWebMode m
@@ -63,25 +63,29 @@ newPayment
     -> AccountId
     -> CId Addr
     -> Coin
+    -> Bool
     -> m CTx
-newPayment sa passphrase srcAccount dstAccount coin =
+newPayment sa passphrase srcAccount dstAccount coin ungroupedInputs =
     sendMoney
         sa
         passphrase
         (AccountMoneySource srcAccount)
         (one (dstAccount, coin))
+        ungroupedInputs
 
 getTxFee
      :: MonadWalletWebMode m
      => AccountId
      -> CId Addr
      -> Coin
+     -> Bool
      -> m CCoin
-getTxFee srcAccount dstAccount coin = do
+getTxFee srcAccount dstAccount coin ungroupedInputs = do
+    let groupedInputs = UseGroupedInputs $ not ungroupedInputs
     utxo <- getMoneySourceUtxo (AccountMoneySource srcAccount)
     outputs <- coinDistrToOutputs $ one (dstAccount, coin)
     TxFee fee <- rewrapTxError "Cannot compute transaction fee" $
-        eitherToThrow =<< runTxCreator (computeTxFee utxo outputs)
+        eitherToThrow =<< runTxCreator groupedInputs (computeTxFee utxo outputs)
     pure $ mkCCoin fee
 
 data MoneySource
@@ -142,8 +146,10 @@ sendMoney
     -> PassPhrase
     -> MoneySource
     -> NonEmpty (CId Addr, Coin)
+    -> Bool
     -> m CTx
-sendMoney SendActions{..} passphrase moneySource dstDistr = do
+sendMoney SendActions{..} passphrase moneySource dstDistr ungroupInputs = do
+    let groupedInputs = UseGroupedInputs $ not ungroupInputs
     let srcWallet = getMoneySourceWallet moneySource
     rootSk <- getSKById srcWallet
     checkPassMatches passphrase rootSk `whenNothing`
@@ -170,7 +176,7 @@ sendMoney SendActions{..} passphrase moneySource dstDistr = do
     (th, dstAddrs) <-
         rewrapTxError "Cannot send transaction" $ do
             (txAux, inpTxOuts') <-
-                prepareMTx getSinger srcAddrs outputs (relatedAccount, passphrase)
+                prepareMTx getSinger groupedInputs srcAddrs outputs (relatedAccount, passphrase)
 
             ts <- Just <$> getCurrentTimestamp
             let tx = taTx txAux

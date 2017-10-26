@@ -52,15 +52,15 @@ import           Formatting              (bprint, build, builder, formatToString
                                           shown, stext, string, (%))
 import           Serokell.Util           (listJsonIndent)
 import           Serokell.Util.ANSI      (Color (..))
-import           Servant.API             ((:<|>) (..), (:>), Capture, QueryParam,
-                                          ReflectMethod (..), ReqBody, Verb)
+import           Servant.API             ((:<|>) (..), (:>), Capture, QueryFlag,
+                                          QueryParam, ReflectMethod (..), ReqBody, Verb)
 import           Servant.Server          (Handler (..), HasServer (..), ServantErr (..),
                                           Server)
 import qualified Servant.Server.Internal as SI
 import           System.Wlog             (LoggerName, usingLoggerName)
 
-import           Pos.Util.Util           (colorizeDull)
 import           Pos.Util.LogSafe        (logInfoS)
+import           Pos.Util.Util           (colorizeDull)
 
 -------------------------------------------------------------------------
 -- Utility functions
@@ -173,6 +173,11 @@ instance ( ReportDecodeError res
          ReportDecodeError (argType a :> res) where
     reportDecodeError _ err = \_ -> reportDecodeError (Proxy @res) err
 
+-- TODO [CSM-466] Get this instance as part of one above
+instance ( ReportDecodeError res
+         ) =>
+         ReportDecodeError (QueryFlag cs :> res) where
+    reportDecodeError _ err = \_ -> reportDecodeError (Proxy @res) err
 
 -- | Wrapper over API argument specifier which says to decode specified argument
 -- with 'decodeCType'.
@@ -358,7 +363,9 @@ class ApiHasArgClass apiType a =>
     toLogParamInfo _ = pretty
 
 instance KnownSymbol s => ApiCanLogArg (Capture s) a
+
 instance ApiCanLogArg (ReqBody ct) a
+
 instance KnownSymbol cs => ApiCanLogArg (QueryParam cs) a where
     type ApiArgToLog (QueryParam cs) a = a
     toLogParamInfo _ = maybe noEntry pretty
@@ -388,6 +395,22 @@ instance ( HasServer (apiType a :> LoggingApiRec config res) ctx
         updateParamsInfo a = do
             let paramName = apiArgName $ Proxy @(apiType a)
                 paramVal  = toLogParamInfo (Proxy @(apiType a)) a
+                paramInfo = sformat (string%": "%stext) paramName paramVal
+            _ApiParamsLogInfo %~ (paramInfo :)
+
+-- TODO [CSM-466] Get this instance as part of one above
+instance ( HasServer (LoggingApiRec config res) ctx
+         , KnownSymbol cs
+         ) =>
+         HasLoggingServer config (QueryFlag cs :> res) ctx where
+    routeWithLog =
+        inRouteServer @(QueryFlag cs :> LoggingApiRec config res) route $
+        \(paramsInfo, f) a -> (a `updateParamsInfo` paramsInfo, f a)
+      where
+        updateParamsInfo a = do
+            let paramName = symbolVal $ Proxy @cs
+                -- we don't care about masking flags for logs
+                paramVal  = pretty a
                 paramInfo = sformat (string%": "%stext) paramName paramVal
             _ApiParamsLogInfo %~ (paramInfo :)
 
