@@ -7,7 +7,7 @@
 module Pos.Client.Txp.Util
        (
        -- * Tx creation params
-         UseGroupedInputs (..)
+         InputSelectionPolicy (..)
 
        -- * Tx creation
        , TxCreateMode
@@ -145,8 +145,10 @@ isCheckedTxError = \case
 -- Tx creation
 -----------------------------------------------------------------------------
 
--- | Whether addresses can be spent entirely only.
-newtype UseGroupedInputs = UseGroupedInputs Bool
+-- | Specifies the way Uxtos are going to be grouped.
+data InputSelectionPolicy
+    = GroupInputs -- ^Spend everything from the address
+    | NoGrouping  -- ^No grouping
     deriving (Show, Eq)
 
 -- | Mode for creating transactions. We need to know fee policy.
@@ -181,7 +183,7 @@ makeAbstractTx mkWit txInputs outputs = TxAux tx txWitness
 -- to create transactions
 data TxCreatorData = TxCreatorData
     { _tcdFeePolicy        :: !TxFeePolicy
-    , _tcdUseGroupedInputs :: !UseGroupedInputs
+    , _tcdInputSelectionPolicy :: !InputSelectionPolicy
     }
 
 makeLenses ''TxCreatorData
@@ -191,12 +193,12 @@ type TxCreator m = ReaderT TxCreatorData (ExceptT TxError m)
 
 runTxCreator
     :: TxDistrMode m
-    => UseGroupedInputs
+    => InputSelectionPolicy
     -> TxCreator m a
     -> m (Either TxError a)
-runTxCreator useGroupedInputs action = runExceptT $ do
+runTxCreator inputSelectionPolicy action = runExceptT $ do
     _tcdFeePolicy <- bvdTxFeePolicy <$> gsAdoptedBVData
-    let _tcdUseGroupedInputs = useGroupedInputs
+    let _tcdInputSelectionPolicy = inputSelectionPolicy
     runReaderT action TxCreatorData{..}
 
 -- | Like 'makePubKeyTx', but allows usage of different signers
@@ -407,11 +409,11 @@ prepareTxRaw
     -> TxFee
     -> TxCreator m TxRaw
 prepareTxRaw utxo outputs fee = do
-    UseGroupedInputs whetherGrouped <- view tcdUseGroupedInputs
+    inputSelectionPolicy <- view tcdInputSelectionPolicy
     let inputPicker =
-            if whetherGrouped
-            then groupedInputPicker
-            else plainInputPicker
+          case inputSelectionPolicy of
+            NoGrouping -> plainInputPicker
+            GroupInputs -> groupedInputPicker
     prepareTxRawWithPicker inputPicker utxo outputs fee
 
 -- Returns set of tx outputs including change output (if it's necessary)
@@ -441,20 +443,20 @@ prepareInpsOuts utxo outputs addrData = do
 createGenericTx
     :: TxCreateMode m
     => (TxOwnedInputs TxOut -> TxOutputs -> TxAux)
-    -> UseGroupedInputs
+    -> InputSelectionPolicy
     -> Utxo
     -> TxOutputs
     -> AddrData m
     -> m (Either TxError TxWithSpendings)
-createGenericTx creator groupInputs utxo outputs addrData =
-    runTxCreator groupInputs $ do
+createGenericTx creator inputSelectionPolicy utxo outputs addrData =
+    runTxCreator inputSelectionPolicy $ do
         (inps, outs) <- prepareInpsOuts utxo outputs addrData
         pure (creator inps outs, map fst inps)
 
 createGenericTxSingle
     :: TxCreateMode m
     => (TxInputs -> TxOutputs -> TxAux)
-    -> UseGroupedInputs
+    -> InputSelectionPolicy
     -> Utxo
     -> TxOutputs
     -> AddrData m
@@ -465,7 +467,7 @@ createGenericTxSingle creator = createGenericTx (creator . map snd)
 -- Currently used for HD wallets only, thus `HDAddressPayload` is required
 createMTx
     :: TxCreateMode m
-    => UseGroupedInputs
+    => InputSelectionPolicy
     -> Utxo
     -> (Address -> SafeSigner)
     -> TxOutputs
@@ -486,7 +488,7 @@ createTx
     -> m (Either TxError TxWithSpendings)
 createTx utxo ss outputs addrData =
     createGenericTxSingle (makePubKeyTx ss)
-    (UseGroupedInputs True) utxo outputs addrData
+    GroupInputs utxo outputs addrData
 
 -- | Make a transaction, using M-of-N script as a source
 createMOfNTx
@@ -498,7 +500,7 @@ createMOfNTx
     -> m (Either TxError TxWithSpendings)
 createMOfNTx utxo keys outputs addrData =
     createGenericTxSingle (makeMOfNTx validator sks)
-    (UseGroupedInputs True) utxo outputs addrData
+    GroupInputs utxo outputs addrData
   where
     ids = map fst keys
     sks = map snd keys
@@ -519,7 +521,7 @@ createRedemptionTx utxo rsk outputs =
         pure $ makeRedemptionTx rsk bareInputs trOutputs
   where
     -- always spend redeem address fully
-    whetherGroupedInputs = UseGroupedInputs False
+    whetherGroupedInputs = NoGrouping
 
 -----------------------------------------------------------------------------
 -- Fees logic

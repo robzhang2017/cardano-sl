@@ -21,7 +21,7 @@ import           Test.QuickCheck.Monadic  (forAllM, stop)
 
 import           Pos.Client.Txp.Addresses (MonadAddresses (..))
 import           Pos.Client.Txp.Util      (TxError (..), TxOutputs, TxWithSpendings,
-                                           UseGroupedInputs (..), createMTx,
+                                           InputSelectionPolicy (..), createMTx,
                                            createRedemptionTx, isNotEnoughMoneyTxError)
 import           Pos.Core                 (BlockVersionData (..), Coeff (..),
                                            TxFeePolicy (..), TxSizeLinear (..),
@@ -94,8 +94,8 @@ getSignerFromList (HM.fromList . map swap . toList -> hm) =
     \addr -> fromMaybe (error "Requested signer for unknown address") $ HM.lookup addr hm
 
 -- TODO [CSM-527] test with ungrouped inputs picking as well.
-useGroupedInputs :: UseGroupedInputs
-useGroupedInputs = UseGroupedInputs True
+useGroupedInputs :: InputSelectionPolicy
+useGroupedInputs = GroupInputs
 
 testCreateMTx
     :: HasTxpConfigurations
