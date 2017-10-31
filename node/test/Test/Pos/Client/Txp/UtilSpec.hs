@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 -- | Specification of Pos.Client.Txp.Util
 
@@ -16,7 +17,7 @@ import qualified Data.Set                 as S
 import           Formatting               (build, hex, left, sformat, shown, (%), (%.))
 import           Test.Hspec               (Spec, describe)
 import           Test.Hspec.QuickCheck    (prop)
-import           Test.QuickCheck          (Discard (..), choose)
+import           Test.QuickCheck          (Discard (..), choose, Testable)
 import           Test.QuickCheck.Monadic  (forAllM, stop)
 
 import           Pos.Client.Txp.Addresses (MonadAddresses (..))
@@ -51,17 +52,32 @@ spec = giveGtConf $ giveNodeConf $ giveInfraConf $ giveUpdateConf $ giveCoreConf
     describe "Client.Txp.Util" $ do
         describe "createMTx" $ createMTxSpec
 
+-- GHC doesn't support impredicative polymorphism so we need a wrapper
+-- for the list below to typecheck.
+data TestFunctionWrapper
+    = forall prop. (Testable prop) => TestFunctionWrapper (InputSelectionPolicy -> prop)
+
 createMTxSpec :: HasTxpConfigurations => Spec
 createMTxSpec = do
-    prop createMTxWorksWhenWeAreRichDesc createMTxWorksWhenWeAreRichSpec
-    prop stabilizationDoesNotFailDesc stabilizationDoesNotFailSpec
-    prop feeIsNonzeroDesc feeIsNonzeroSpec
-    prop manyUtxoTo1Desc manyUtxoTo1Spec
-    prop manyAddressesTo1Desc manyAddressesTo1Spec
-    prop manyAddressesToManyDesc manyAddressesToManySpec
+    let inputSelectionPolicies =
+            [("Grouped inputs", OptimizeForSecurity)
+            ,("Ungrouped inputs", OptimizeForSize)
+            ]
+    let testSpecs =
+            [(createMTxWorksWhenWeAreRichDesc, TestFunctionWrapper createMTxWorksWhenWeAreRichSpec)
+            ,(stabilizationDoesNotFailDesc, TestFunctionWrapper stabilizationDoesNotFailSpec)
+            ,(feeIsNonzeroDesc, TestFunctionWrapper feeIsNonzeroSpec)
+            ,(manyUtxoTo1Desc, TestFunctionWrapper manyUtxoTo1Spec)
+            ,(manyAddressesTo1Desc, TestFunctionWrapper manyAddressesTo1Spec)
+            ,(manyAddressesToManyDesc, TestFunctionWrapper manyAddressesToManySpec)
+            ,(txWithRedeemOutputFailsDesc, TestFunctionWrapper txWithRedeemOutputFailsSpec)
+            ,(feeForManyAddressesDesc, TestFunctionWrapper feeForManyAddressesSpec)
+            ]
+    sequence_ $ do
+        (funcDesc, TestFunctionWrapper func) <- testSpecs
+        (inputSelectionDesc, inputSelectionPolicy) <- inputSelectionPolicies
+        return $ prop (inputSelectionDesc <> ": " <> funcDesc) (func inputSelectionPolicy)
     prop redemptionDesc redemptionSpec
-    prop txWithRedeemOutputFailsDesc txWithRedeemOutputFailsSpec
-    prop feeForManyAddressesDesc feeForManyAddressesSpec
   where
     createMTxWorksWhenWeAreRichDesc =
         "Transaction is created successfully when we have 1 input with 1M coins " <>
@@ -93,39 +109,35 @@ getSignerFromList :: NonEmpty (SafeSigner, Address) -> (Address -> SafeSigner)
 getSignerFromList (HM.fromList . map swap . toList -> hm) =
     \addr -> fromMaybe (error "Requested signer for unknown address") $ HM.lookup addr hm
 
--- TODO [CSM-527] test with ungrouped inputs picking as well.
-useGroupedInputs :: InputSelectionPolicy
-useGroupedInputs = OptimizeForSecurity
-
 testCreateMTx
     :: HasTxpConfigurations
     => CreateMTxParams
     -> TxpTestProperty (Either TxError (TxAux, NonEmpty TxOut))
 testCreateMTx CreateMTxParams{..} =
-    createMTx useGroupedInputs cmpUtxo (getSignerFromList cmpSigners)
+    createMTx cmpInputSelectionPolicy cmpUtxo (getSignerFromList cmpSigners)
     cmpOutputs cmpAddrData
 
-createMTxWorksWhenWeAreRichSpec :: HasTxpConfigurations => TxpTestProperty ()
-createMTxWorksWhenWeAreRichSpec = do
+createMTxWorksWhenWeAreRichSpec :: HasTxpConfigurations => InputSelectionPolicy -> TxpTestProperty ()
+createMTxWorksWhenWeAreRichSpec inputSelectionPolicy = do
     txOrError <- testCreateMTx txParams
     case txOrError of
         Left err -> stopProperty $ sformat ("Failed to create tx: "%build) err
         Right tx -> ensureTxMakesSense tx cmpUtxo cmpOutputs
   where
-    txParams@CreateMTxParams{..} = makeManyAddressesToManyParams 1 1000000 1 1
+    txParams@CreateMTxParams{..} = makeManyAddressesToManyParams inputSelectionPolicy 1 1000000 1 1
 
-stabilizationDoesNotFailSpec :: HasTxpConfigurations => TxpTestProperty ()
-stabilizationDoesNotFailSpec = do
+stabilizationDoesNotFailSpec :: HasTxpConfigurations => InputSelectionPolicy -> TxpTestProperty ()
+stabilizationDoesNotFailSpec inputSelectionPolicy = do
     txOrError <- testCreateMTx txParams
     case txOrError of
         Left err@FailedToStabilize -> stopProperty $ pretty err
         Left _                     -> return ()
         Right tx                   -> ensureTxMakesSense tx cmpUtxo cmpOutputs
   where
-    txParams@CreateMTxParams {..} = makeManyAddressesToManyParams 1 200000 1 1
+    txParams@CreateMTxParams {..} = makeManyAddressesToManyParams inputSelectionPolicy 1 200000 1 1
 
-feeIsNonzeroSpec :: HasTxpConfigurations => TxpTestProperty ()
-feeIsNonzeroSpec = do
+feeIsNonzeroSpec :: HasTxpConfigurations => InputSelectionPolicy -> TxpTestProperty ()
+feeIsNonzeroSpec inputSelectionPolicy = do
     txOrError <- testCreateMTx txParams
     case txOrError of
         Left (NotEnoughMoney _) -> return ()
@@ -134,34 +146,34 @@ feeIsNonzeroSpec = do
             "Transaction was created even though there were " <>
                 "not enough funds for the fee"
   where
-    txParams@CreateMTxParams {..} = makeManyAddressesToManyParams 1 100000 1 1
+    txParams@CreateMTxParams {..} = makeManyAddressesToManyParams inputSelectionPolicy 1 100000 1 1
 
-manyUtxoTo1Spec :: HasTxpConfigurations => TxpTestProperty ()
-manyUtxoTo1Spec = do
+manyUtxoTo1Spec :: HasTxpConfigurations => InputSelectionPolicy -> TxpTestProperty ()
+manyUtxoTo1Spec inputSelectionPolicy = do
     txOrError <- testCreateMTx txParams
     case txOrError of
         Left err -> stopProperty $ pretty err
         Right tx -> ensureTxMakesSense tx cmpUtxo cmpOutputs
   where
-    txParams@CreateMTxParams {..} = makeManyUtxoTo1Params 10 100000 1
+    txParams@CreateMTxParams {..} = makeManyUtxoTo1Params inputSelectionPolicy 10 100000 1
 
-manyAddressesTo1Spec :: HasTxpConfigurations => TxpTestProperty ()
-manyAddressesTo1Spec = do
+manyAddressesTo1Spec :: HasTxpConfigurations => InputSelectionPolicy -> TxpTestProperty ()
+manyAddressesTo1Spec inputSelectionPolicy = do
     txOrError <- testCreateMTx txParams
     case txOrError of
         Left err -> stopProperty $ pretty err
         Right tx -> ensureTxMakesSense tx cmpUtxo cmpOutputs
   where
-    txParams@CreateMTxParams {..} = makeManyAddressesToManyParams 10 100000 1 1
+    txParams@CreateMTxParams {..} = makeManyAddressesToManyParams inputSelectionPolicy 10 100000 1 1
 
-manyAddressesToManySpec :: HasTxpConfigurations => TxpTestProperty ()
-manyAddressesToManySpec = do
+manyAddressesToManySpec :: HasTxpConfigurations => InputSelectionPolicy -> TxpTestProperty ()
+manyAddressesToManySpec inputSelectionPolicy = do
     txOrError <- testCreateMTx txParams
     case txOrError of
         Left err -> stopProperty $ pretty err
         Right tx -> ensureTxMakesSense tx cmpUtxo cmpOutputs
   where
-    txParams@CreateMTxParams {..} = makeManyAddressesToManyParams 10 100000 10 1
+    txParams@CreateMTxParams {..} = makeManyAddressesToManyParams inputSelectionPolicy 10 100000 10 1
 
 redemptionSpec :: HasTxpConfigurations => TxpTestProperty ()
 redemptionSpec = do
@@ -179,10 +191,10 @@ redemptionSpec = do
     utxo = one (TxInUtxo (unsafeIntegerToTxId 0) 0, txOutAuxInput)
     outputs = one txOutAuxOutput
 
-txWithRedeemOutputFailsSpec :: HasTxpConfigurations => TxpTestProperty ()
-txWithRedeemOutputFailsSpec = do
+txWithRedeemOutputFailsSpec :: HasTxpConfigurations => InputSelectionPolicy -> TxpTestProperty ()
+txWithRedeemOutputFailsSpec inputSelectionPolicy = do
     txOrError <-
-        createMTx useGroupedInputs utxo (getSignerFromList signers) outputs addrData
+        createMTx inputSelectionPolicy utxo (getSignerFromList signers) outputs addrData
     case txOrError of
         Left (OutputIsRedeem _) -> return ()
         Left err -> stopProperty $ pretty err
@@ -202,9 +214,10 @@ txWithRedeemOutputFailsSpec = do
 
 feeForManyAddressesSpec
     :: HasTxpConfigurations
-    => Bool
+    => InputSelectionPolicy
+    -> Bool
     -> TxpTestProperty ()
-feeForManyAddressesSpec manyAddrs =
+feeForManyAddressesSpec inputSelectionPolicy manyAddrs =
     forAllM (choose (5, 20)) $
         \(Coeff . fromInteger -> feePolicySlope) ->
     forAllM (choose (10000, 100000)) $
@@ -217,7 +230,7 @@ feeForManyAddressesSpec manyAddrs =
     setTxFeePolicy feePolicyConstTerm feePolicySlope
 
     -- tx builder should find this utxo to be enough for construction
-    let params = mkParams 100 perAddrAmount toSpend
+    let params = mkParams inputSelectionPolicy 100 perAddrAmount toSpend
     txOrError <- testCreateMTx params
     txAux <- case txOrError of
         Left err ->
@@ -250,7 +263,9 @@ feeForManyAddressesSpec manyAddrs =
 
 -- | Container for parameters of `createMTx`.
 data CreateMTxParams = CreateMTxParams
-    { cmpUtxo     :: !Utxo
+    { cmpInputSelectionPolicy :: InputSelectionPolicy
+    -- ^ Input selection policy
+    , cmpUtxo     :: !Utxo
     -- ^ Unspent transaction outputs.
     , cmpSigners  :: !(NonEmpty (SafeSigner, Address))
     -- ^ Wrappers around secret keys for addresses in Utxo.
@@ -261,8 +276,8 @@ data CreateMTxParams = CreateMTxParams
     -- In tests, it is always `()`.
     }
 
-makeManyUtxoTo1Params :: Word8 -> Integer -> Integer -> CreateMTxParams
-makeManyUtxoTo1Params numFrom amountEachFrom amountTo = CreateMTxParams {..}
+makeManyUtxoTo1Params :: InputSelectionPolicy -> Word8 -> Integer -> Integer -> CreateMTxParams
+makeManyUtxoTo1Params inputSelectionPolicy numFrom amountEachFrom amountTo = CreateMTxParams {..}
   where
     seedInput  = BS.replicate seedSize (0 :: Word8)
     seedOutput = BS.replicate seedSize (1 :: Word8)
@@ -270,6 +285,7 @@ makeManyUtxoTo1Params numFrom amountEachFrom amountTo = CreateMTxParams {..}
     (sk, addr, txOutAuxInput) = generateTxOutAux amountEachFrom seedInput
     (_, _, txOutAuxOutput)    = generateTxOutAux amountTo       seedOutput
 
+    cmpInputSelectionPolicy = inputSelectionPolicy
     cmpUtxo = M.fromList
         [(TxInUtxo (unsafeIntegerToTxId 0) (fromIntegral k), txOutAuxInput) |
             k <- [0..numFrom-1]]
@@ -277,8 +293,8 @@ makeManyUtxoTo1Params numFrom amountEachFrom amountTo = CreateMTxParams {..}
     cmpOutputs = one txOutAuxOutput
     cmpAddrData = ()
 
-makeManyAddressesToManyParams :: Word8 -> Integer -> Word8 -> Integer -> CreateMTxParams
-makeManyAddressesToManyParams numFrom amountEachFrom numTo amountEachTo = CreateMTxParams {..}
+makeManyAddressesToManyParams :: InputSelectionPolicy -> Word8 -> Integer -> Word8 -> Integer -> CreateMTxParams
+makeManyAddressesToManyParams inputSelectionPolicy numFrom amountEachFrom numTo amountEachTo = CreateMTxParams {..}
   where
     seedsInput = [BS.replicate seedSize v | v <- [0..numFrom-1]]
     (cmpSignersList, txOutAuxInputs) = unzip
@@ -291,14 +307,15 @@ makeManyAddressesToManyParams numFrom amountEachFrom numTo amountEachTo = Create
     txOutAuxOutputs = [txOutAux |
         (_, _, txOutAux) <- map (generateTxOutAux amountEachTo) seedsOutput]
 
+    cmpInputSelectionPolicy = inputSelectionPolicy
     cmpUtxo = M.fromList [(TxInUtxo (unsafeIntegerToTxId $ fromIntegral k) 0, txOutAux) |
         (k, txOutAux) <- zip [0..numFrom-1] txOutAuxInputs]
     cmpOutputs = NE.fromList txOutAuxOutputs
     cmpAddrData = ()
 
-makeManyAddressesTo1Params :: Word8 -> Integer -> Integer -> CreateMTxParams
-makeManyAddressesTo1Params numFrom amountEachFrom amountEachTo =
-    makeManyAddressesToManyParams numFrom amountEachFrom 1 amountEachTo
+makeManyAddressesTo1Params :: InputSelectionPolicy -> Word8 -> Integer -> Integer -> CreateMTxParams
+makeManyAddressesTo1Params inputSelectionPolicy numFrom amountEachFrom amountEachTo =
+    makeManyAddressesToManyParams inputSelectionPolicy numFrom amountEachFrom 1 amountEachTo
 
 ensureTxMakesSense
   :: HasTxpConfigurations
