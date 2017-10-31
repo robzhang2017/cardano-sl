@@ -147,8 +147,8 @@ isCheckedTxError = \case
 
 -- | Specifies the way Uxtos are going to be grouped.
 data InputSelectionPolicy
-    = GroupInputs -- ^Spend everything from the address
-    | NoGrouping  -- ^No grouping
+    = GroupInputs -- ^ Spend everything from the address
+    | NoGrouping  -- ^ No grouping
     deriving (Show, Eq)
 
 -- | Mode for creating transactions. We need to know fee policy.
