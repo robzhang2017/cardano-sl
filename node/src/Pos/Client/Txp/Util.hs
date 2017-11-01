@@ -147,8 +147,8 @@ isCheckedTxError = \case
 
 -- | Specifies the way Uxtos are going to be grouped.
 data InputSelectionPolicy
-    = GroupInputs -- ^ Spend everything from the address
-    | NoGrouping  -- ^ No grouping
+    = OptimizeForSecurity  -- ^ Spend everything from the address
+    | OptimizeForSize      -- ^ No grouping
     deriving (Show, Eq)
 
 -- | Mode for creating transactions. We need to know fee policy.
@@ -182,7 +182,7 @@ makeAbstractTx mkWit txInputs outputs = TxAux tx txWitness
 -- | Datatype which contains all data from DB which is necessary
 -- to create transactions
 data TxCreatorData = TxCreatorData
-    { _tcdFeePolicy        :: !TxFeePolicy
+    { _tcdFeePolicy            :: !TxFeePolicy
     , _tcdInputSelectionPolicy :: !InputSelectionPolicy
     }
 
@@ -412,8 +412,8 @@ prepareTxRaw utxo outputs fee = do
     inputSelectionPolicy <- view tcdInputSelectionPolicy
     let inputPicker =
           case inputSelectionPolicy of
-            NoGrouping -> plainInputPicker
-            GroupInputs -> groupedInputPicker
+            OptimizeForSize     -> plainInputPicker
+            OptimizeForSecurity -> groupedInputPicker
     prepareTxRawWithPicker inputPicker utxo outputs fee
 
 -- Returns set of tx outputs including change output (if it's necessary)
@@ -488,7 +488,7 @@ createTx
     -> m (Either TxError TxWithSpendings)
 createTx utxo ss outputs addrData =
     createGenericTxSingle (makePubKeyTx ss)
-    GroupInputs utxo outputs addrData
+    OptimizeForSecurity utxo outputs addrData
 
 -- | Make a transaction, using M-of-N script as a source
 createMOfNTx
@@ -500,7 +500,7 @@ createMOfNTx
     -> m (Either TxError TxWithSpendings)
 createMOfNTx utxo keys outputs addrData =
     createGenericTxSingle (makeMOfNTx validator sks)
-    GroupInputs utxo outputs addrData
+    OptimizeForSecurity utxo outputs addrData
   where
     ids = map fst keys
     sks = map snd keys
@@ -521,7 +521,7 @@ createRedemptionTx utxo rsk outputs =
         pure $ makeRedemptionTx rsk bareInputs trOutputs
   where
     -- always spend redeem address fully
-    whetherGroupedInputs = NoGrouping
+    whetherGroupedInputs = OptimizeForSize
 
 -----------------------------------------------------------------------------
 -- Fees logic

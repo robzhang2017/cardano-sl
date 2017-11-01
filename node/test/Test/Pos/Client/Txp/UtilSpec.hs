@@ -20,8 +20,8 @@ import           Test.QuickCheck          (Discard (..), choose)
 import           Test.QuickCheck.Monadic  (forAllM, stop)
 
 import           Pos.Client.Txp.Addresses (MonadAddresses (..))
-import           Pos.Client.Txp.Util      (TxError (..), TxOutputs, TxWithSpendings,
-                                           InputSelectionPolicy (..), createMTx,
+import           Pos.Client.Txp.Util      (InputSelectionPolicy (..), TxError (..),
+                                           TxOutputs, TxWithSpendings, createMTx,
                                            createRedemptionTx, isNotEnoughMoneyTxError)
 import           Pos.Core                 (BlockVersionData (..), Coeff (..),
                                            TxFeePolicy (..), TxSizeLinear (..),
@@ -95,7 +95,7 @@ getSignerFromList (HM.fromList . map swap . toList -> hm) =
 
 -- TODO [CSM-527] test with ungrouped inputs picking as well.
 useGroupedInputs :: InputSelectionPolicy
-useGroupedInputs = GroupInputs
+useGroupedInputs = OptimizeForSecurity
 
 testCreateMTx
     :: HasTxpConfigurations
