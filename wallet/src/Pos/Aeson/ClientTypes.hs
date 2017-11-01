@@ -3,6 +3,7 @@ module Pos.Aeson.ClientTypes
        ) where
 
 import           Data.Aeson.TH                (defaultOptions, deriveJSON, deriveToJSON)
+import           Pos.Aeson.Options            (customOptionsWithTag)
 import           Pos.Client.Txp.Util          (InputSelectionPolicy)
 import           Pos.Core.Types               (SoftwareVersion (..))
 import           Pos.Util.BackupPhrase        (BackupPhrase)
@@ -35,7 +36,7 @@ deriveJSON defaultOptions ''Wal
 deriveJSON defaultOptions ''Addr
 deriveJSON defaultOptions ''CHash
 deriveJSON defaultOptions ''CInitialized
-deriveJSON defaultOptions ''InputSelectionPolicy
+deriveJSON (customOptionsWithTag "groupingPolicy") ''InputSelectionPolicy
 
 deriveToJSON defaultOptions ''CCoin
 deriveToJSON defaultOptions ''SyncProgress
