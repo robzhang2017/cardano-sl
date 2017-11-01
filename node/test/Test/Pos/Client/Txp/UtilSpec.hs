@@ -78,6 +78,8 @@ createMTxSpec = do
         (inputSelectionDesc, inputSelectionPolicy) <- inputSelectionPolicies
         return $ prop (inputSelectionDesc <> ": " <> funcDesc) (func inputSelectionPolicy)
     prop redemptionDesc redemptionSpec
+    prop groupedPolicyDesc groupedPolicySpec
+    prop ungroupedPolicyDesc ungroupedPolicySpec
   where
     createMTxWorksWhenWeAreRichDesc =
         "Transaction is created successfully when we have 1 input with 1M coins " <>
@@ -103,6 +105,10 @@ createMTxSpec = do
         "An attempt to create a tx with a redeem address as an output fails"
     feeForManyAddressesDesc =
         "Fee evaluation succeedes when many addresses are used"
+    groupedPolicyDesc =
+        "The amount of used inputs equals the amount of avaliable inputs"
+    ungroupedPolicyDesc =
+        "The amount of used inputs is as small as possible"
 
 
 getSignerFromList :: NonEmpty (SafeSigner, Address) -> (Address -> SafeSigner)
@@ -256,6 +262,30 @@ feeForManyAddressesSpec inputSelectionPolicy manyAddrs =
     mkParams
         | manyAddrs = makeManyAddressesTo1Params
         | otherwise = makeManyUtxoTo1Params
+
+
+groupedPolicySpec :: HasTxpConfigurations => TxpTestProperty ()
+groupedPolicySpec =
+    testCreateMTx txParams >>= \case
+        Left err -> stopProperty $ pretty err
+        Right (txAux, _) ->
+            let picked = length . _txInputs . taTx $ txAux
+            in unless (picked == utxoNum) . stopProperty
+            $ sformat ("Only "%build%" inputs were used instead of all of the inputs") picked
+  where
+    utxoNum = 10 :: Int
+    txParams = makeManyUtxoTo1Params OptimizeForSecurity (fromIntegral utxoNum) 1000000 1
+
+ungroupedPolicySpec :: HasTxpConfigurations => TxpTestProperty ()
+ungroupedPolicySpec =
+    testCreateMTx txParams >>= \case
+        Left err -> stopProperty $ pretty err
+        Right (txAux, _) ->
+            let picked = length . _txInputs . taTx $ txAux
+            in unless (picked == (1 :: Int)) . stopProperty
+            $ sformat ("Only "%build%" inputs were used instead of just 1 input") picked
+  where
+    txParams = makeManyUtxoTo1Params OptimizeForSize 10 1000000 1
 
 ----------------------------------------------------------------------------
 -- Helpers
