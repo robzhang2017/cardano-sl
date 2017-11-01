@@ -30,6 +30,7 @@ module Pos.Util.Servant
     , CQueryParam
     , CCapture
     , CReqBody
+    , DReqBody
     , DCQueryParam
 
     , serverHandlerL
@@ -531,5 +532,7 @@ instance ReportDecodeError api =>
 type CQueryParam s a = CDecodeApiArg (QueryParam s) a
 type CCapture s a    = CDecodeApiArg (Capture s) a
 type CReqBody c a    = CDecodeApiArg (ReqBody c) a
+
+type DReqBody c a    = WithDefaultApiArg (ReqBody c) a
 
 type DCQueryParam s a = WithDefaultApiArg (CDecodeApiArg $ QueryParam s) a

@@ -13,12 +13,13 @@ import           Control.Lens               (mapped, (?~))
 import           Data.Swagger               (NamedSchema (..), SwaggerType (..),
                                              ToParamSchema (..), ToSchema (..),
                                              declareNamedSchema, declareSchemaRef,
-                                             defaultSchemaOptions,
-                                             format, genericDeclareNamedSchema,
-                                             name, properties, required, type_)
+                                             defaultSchemaOptions, format,
+                                             genericDeclareNamedSchema, name, properties,
+                                             required, type_)
 import           Data.Typeable              (Typeable, typeRep)
 import           Servant.Multipart          (FileData (..))
 
+import           Pos.Client.Txp.Util        (InputSelectionPolicy)
 import           Pos.Types                  (ApplicationName, BlockCount (..),
                                              BlockVersion, ChainDifficulty, Coin,
                                              SlotCount (..), SoftwareVersion)
@@ -72,6 +73,7 @@ instance ToSchema      CT.SyncProgress
 instance ToSchema      BlockCount
 instance ToSchema      SlotCount
 instance ToSchema      ChainDifficulty
+instance ToSchema      InputSelectionPolicy
 instance ToSchema      BlockVersion
 instance ToSchema      BackupPhrase
 instance ToParamSchema CT.CPassPhrase

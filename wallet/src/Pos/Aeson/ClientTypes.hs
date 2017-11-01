@@ -3,6 +3,7 @@ module Pos.Aeson.ClientTypes
        ) where
 
 import           Data.Aeson.TH                (defaultOptions, deriveJSON, deriveToJSON)
+import           Pos.Client.Txp.Util          (InputSelectionPolicy)
 import           Pos.Core.Types               (SoftwareVersion (..))
 import           Pos.Util.BackupPhrase        (BackupPhrase)
 import           Pos.Wallet.Web.ClientTypes   (Addr, CAccount, CAccountId, CAccountInit,
@@ -34,6 +35,7 @@ deriveJSON defaultOptions ''Wal
 deriveJSON defaultOptions ''Addr
 deriveJSON defaultOptions ''CHash
 deriveJSON defaultOptions ''CInitialized
+deriveJSON defaultOptions ''InputSelectionPolicy
 
 deriveToJSON defaultOptions ''CCoin
 deriveToJSON defaultOptions ''SyncProgress

@@ -21,9 +21,9 @@ import           System.Wlog                  (logDebug)
 import           Pos.Aeson.ClientTypes        ()
 import           Pos.Aeson.WalletBackup       ()
 import           Pos.Constants                (isDevelopment)
+import           Pos.Core.Configuration       (genesisHdwSecretKeys)
 import           Pos.Crypto                   (EncryptedSecretKey, PassPhrase,
                                                emptyPassphrase, firstHardened)
-import           Pos.Core.Configuration       (genesisHdwSecretKeys)
 import           Pos.StateLock                (Priority (..), withStateLockNoMetrics)
 import           Pos.Util                     (maybeThrow)
 import           Pos.Util.UserSecret          (UserSecretDecodingError (..),
@@ -41,8 +41,8 @@ import           Pos.Wallet.Web.Mode          (MonadWalletWebMode)
 import           Pos.Wallet.Web.Secret        (WalletUserSecret (..),
                                                mkGenesisWalletUserSecret, wusAccounts,
                                                wusWalletName)
-import           Pos.Wallet.Web.State         (createAccount, setWalletSyncTip,
-                                               removeHistoryCache)
+import           Pos.Wallet.Web.State         (createAccount, removeHistoryCache,
+                                               setWalletSyncTip)
 import           Pos.Wallet.Web.Tracking      (syncWalletOnImport)
 
 

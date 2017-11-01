@@ -68,15 +68,16 @@ import           Control.Lens               (from)
 import           Control.Monad.Catch        (try)
 import           Data.Reflection            (Reifies (..))
 import           Servant.API                ((:<|>), (:>), Capture, Delete, Get, JSON,
-                                             Post, Put, QueryFlag, QueryParam,
-                                             ReflectMethod (..), ReqBody, Verb)
+                                             Post, Put, QueryParam, ReflectMethod (..),
+                                             ReqBody, Verb)
 import           Servant.Server             (HasServer (..))
 import           Servant.Swagger.UI         (SwaggerSchemaUI)
 import           Universum
 
+import           Pos.Client.Txp.Util        (InputSelectionPolicy)
 import           Pos.Types                  (Coin, SoftwareVersion)
 import           Pos.Util.Servant           (ApiLoggingConfig, CCapture, CQueryParam,
-                                             CReqBody, DCQueryParam,
+                                             CReqBody, DCQueryParam, DReqBody,
                                              HasLoggingServer (..), LoggingApi,
                                              ModifiesApiRes (..), ReportDecodeError (..),
                                              VerbMod, WithTruncatedLog (..),
@@ -267,7 +268,7 @@ type NewPayment =
     :> CCapture "from" CAccountId
     :> Capture "to" (CId Addr)
     :> Capture "amount" Coin
-    :> QueryFlag "ungrouped"
+    :> DReqBody '[JSON] (Maybe InputSelectionPolicy)
     :> WRes Post CTx
 
 type TxFee =
@@ -276,8 +277,8 @@ type TxFee =
     :> CCapture "from" CAccountId
     :> Capture "to" (CId Addr)
     :> Capture "amount" Coin
-    :> QueryFlag "ungrouped"
-    :> WRes Get CCoin
+    :> DReqBody '[JSON] (Maybe InputSelectionPolicy)
+    :> WRes Post CCoin
 
 type UpdateTx =
        "txs"

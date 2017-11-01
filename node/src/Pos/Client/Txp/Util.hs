@@ -41,6 +41,7 @@ import           Universum
 
 import           Control.Lens             (makeLenses, (%=), (.=))
 import           Control.Monad.Except     (ExceptT, MonadError (throwError), runExceptT)
+import           Data.Default             (Default (..))
 import           Data.Fixed               (Fixed, HasResolution)
 import qualified Data.HashSet             as HS
 import           Data.List                (tail)
@@ -149,7 +150,15 @@ isCheckedTxError = \case
 data InputSelectionPolicy
     = OptimizeForSecurity  -- ^ Spend everything from the address
     | OptimizeForSize      -- ^ No grouping
-    deriving (Show, Eq)
+    deriving (Show, Eq, Generic)
+
+instance Buildable InputSelectionPolicy where
+    build = \case
+        OptimizeForSecurity -> "securely"
+        OptimizeForSize -> "simple"
+
+instance Default InputSelectionPolicy where
+    def = OptimizeForSecurity
 
 -- | Mode for creating transactions. We need to know fee policy.
 type TxDistrMode m
