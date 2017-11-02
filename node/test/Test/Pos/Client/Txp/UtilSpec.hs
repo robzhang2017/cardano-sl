@@ -60,18 +60,18 @@ data TestFunctionWrapper
 createMTxSpec :: HasTxpConfigurations => Spec
 createMTxSpec = do
     let inputSelectionPolicies =
-            [("Grouped inputs", OptimizeForSecurity)
-            ,("Ungrouped inputs", OptimizeForSize)
+            [ ("Grouped inputs", OptimizeForSecurity)
+            , ("Ungrouped inputs", OptimizeForSize)
             ]
     let testSpecs =
-            [(createMTxWorksWhenWeAreRichDesc, TestFunctionWrapper createMTxWorksWhenWeAreRichSpec)
-            ,(stabilizationDoesNotFailDesc, TestFunctionWrapper stabilizationDoesNotFailSpec)
-            ,(feeIsNonzeroDesc, TestFunctionWrapper feeIsNonzeroSpec)
-            ,(manyUtxoTo1Desc, TestFunctionWrapper manyUtxoTo1Spec)
-            ,(manyAddressesTo1Desc, TestFunctionWrapper manyAddressesTo1Spec)
-            ,(manyAddressesToManyDesc, TestFunctionWrapper manyAddressesToManySpec)
-            ,(txWithRedeemOutputFailsDesc, TestFunctionWrapper txWithRedeemOutputFailsSpec)
-            ,(feeForManyAddressesDesc, TestFunctionWrapper feeForManyAddressesSpec)
+            [ (createMTxWorksWhenWeAreRichDesc, TestFunctionWrapper createMTxWorksWhenWeAreRichSpec)
+            , (stabilizationDoesNotFailDesc, TestFunctionWrapper stabilizationDoesNotFailSpec)
+            , (feeIsNonzeroDesc, TestFunctionWrapper feeIsNonzeroSpec)
+            , (manyUtxoTo1Desc, TestFunctionWrapper manyUtxoTo1Spec)
+            , (manyAddressesTo1Desc, TestFunctionWrapper manyAddressesTo1Spec)
+            , (manyAddressesToManyDesc, TestFunctionWrapper manyAddressesToManySpec)
+            , (txWithRedeemOutputFailsDesc, TestFunctionWrapper txWithRedeemOutputFailsSpec)
+            , (feeForManyAddressesDesc, TestFunctionWrapper feeForManyAddressesSpec)
             ]
 
     sequence_ $ inputSelectionPolicies <&> \(inputSelectionDesc, policy) ->
@@ -107,7 +107,7 @@ createMTxSpec = do
     feeForManyAddressesDesc =
         "Fee evaluation succeedes when many addresses are used"
     groupedPolicyDesc =
-        "The amount of used inputs equals the amount of avaliable inputs"
+        "The amount of used inputs equals the amount of available inputs"
     ungroupedPolicyDesc =
         "The amount of used inputs is as small as possible"
 
