@@ -273,7 +273,7 @@ groupedPolicySpec =
             in unless (picked == utxoNum) . stopProperty
             $ sformat ("Only "%build%" inputs were used instead of all of the inputs") picked
   where
-    utxoNum = 10 :: Int
+    utxoNum = 10
     txParams = makeManyUtxoTo1Params OptimizeForSecurity (fromIntegral utxoNum) 1000000 1
 
 ungroupedPolicySpec :: HasTxpConfigurations => TxpTestProperty ()
@@ -282,7 +282,7 @@ ungroupedPolicySpec =
         Left err -> stopProperty $ pretty err
         Right (txAux, _) ->
             let picked = length . _txInputs . taTx $ txAux
-            in unless (picked == (1 :: Int)) . stopProperty
+            in unless (picked == 1) . stopProperty
             $ sformat ("Only "%build%" inputs were used instead of just 1 input") picked
   where
     txParams = makeManyUtxoTo1Params OptimizeForSize 10 1000000 1
