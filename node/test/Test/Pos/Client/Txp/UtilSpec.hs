@@ -75,8 +75,8 @@ createMTxSpec = do
             ]
 
     for_ inputSelectionPolicies $ \(inputSelectionDesc, policy) ->
-        describe inputSelectionDesc . sequence_ $
-            map (\(funcDesc, TestFunctionWrapper func) -> prop funcDesc (func policy)) testSpecs
+        describe inputSelectionDesc . for_ testSpecs $ \(funcDesc, TestFunctionWrapper func) ->
+            prop funcDesc (func policy)
 
     prop redemptionDesc redemptionSpec
     prop groupedPolicyDesc groupedPolicySpec
