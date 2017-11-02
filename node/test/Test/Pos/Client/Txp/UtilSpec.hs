@@ -73,10 +73,11 @@ createMTxSpec = do
             ,(txWithRedeemOutputFailsDesc, TestFunctionWrapper txWithRedeemOutputFailsSpec)
             ,(feeForManyAddressesDesc, TestFunctionWrapper feeForManyAddressesSpec)
             ]
-    sequence_ $ do
-        (funcDesc, TestFunctionWrapper func) <- testSpecs
-        (inputSelectionDesc, inputSelectionPolicy) <- inputSelectionPolicies
-        return $ prop (inputSelectionDesc <> ": " <> funcDesc) (func inputSelectionPolicy)
+
+    sequence_ $ inputSelectionPolicies <&> \(inputSelectionDesc, policy) ->
+        describe inputSelectionDesc . sequence_ $
+            map (\(funcDesc, TestFunctionWrapper func) -> prop funcDesc (func policy)) testSpecs
+
     prop redemptionDesc redemptionSpec
     prop groupedPolicyDesc groupedPolicySpec
     prop ungroupedPolicyDesc ungroupedPolicySpec
