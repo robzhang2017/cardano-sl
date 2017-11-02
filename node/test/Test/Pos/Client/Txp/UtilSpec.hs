@@ -74,7 +74,7 @@ createMTxSpec = do
             , (feeForManyAddressesDesc, TestFunctionWrapper feeForManyAddressesSpec)
             ]
 
-    sequence_ $ inputSelectionPolicies <&> \(inputSelectionDesc, policy) ->
+    for_ inputSelectionPolicies $ \(inputSelectionDesc, policy) ->
         describe inputSelectionDesc . sequence_ $
             map (\(funcDesc, TestFunctionWrapper func) -> prop funcDesc (func policy)) testSpecs
 
