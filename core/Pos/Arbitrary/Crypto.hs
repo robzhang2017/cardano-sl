@@ -2,15 +2,20 @@
 
 module Pos.Arbitrary.Crypto
        ( SharedSecrets (..)
+
+       , arbitraryEncSecretKey
+       , arbitraryMostlyUnencryptedKeys
        ) where
 
 import           Universum
 
 import           Control.Monad                     (zipWithM)
+import           Crypto.Random                     (getRandomBytes)
 import qualified Data.ByteArray                    as ByteArray
+import qualified Data.ByteString                   as BS
 import           Data.List.NonEmpty                (fromList)
-import           Test.QuickCheck                   (Arbitrary (..), elements, oneof,
-                                                    vector)
+import           Test.QuickCheck                   (Arbitrary (..), Gen, elements,
+                                                    frequency, oneof, vector, vectorOf)
 import           Test.QuickCheck.Arbitrary.Generic (genericArbitrary, genericShrink)
 
 import           Pos.Arbitrary.Crypto.Unsafe       ()
@@ -28,16 +33,19 @@ import           Pos.Crypto.SecretSharing          (DecShare, EncShare, Secret,
                                                     vssKeyGen)
 import           Pos.Crypto.Signing                (ProxyCert, ProxySecretKey,
                                                     ProxySignature, PublicKey, SecretKey,
-                                                    Signature, Signed, keyGen, mkSigned,
+                                                    Signature, Signed,
+                                                    deterministicKeyGen, keyGen, mkSigned,
                                                     proxySign, sign, toPublic)
 import           Pos.Crypto.Signing.Redeem         (RedeemPublicKey, RedeemSecretKey,
                                                     RedeemSignature, redeemKeyGen,
                                                     redeemSign)
-import           Pos.Crypto.Signing.Safe           (PassPhrase, createProxyCert,
-                                                    createPsk)
+import           Pos.Crypto.Signing.Safe           (EncryptedSecretKey, PassPhrase,
+                                                    createProxyCert, createPsk,
+                                                    emptyPassphrase, noPassEncrypt,
+                                                    passphraseLength, safeKeyGen)
 import           Pos.Crypto.Signing.Types.Tag      (SignTag (..))
-import           Pos.Util.Arbitrary                (Nonrepeating (..), arbitraryUnsafe,
-                                                    sublistN)
+import           Pos.Util.Arbitrary                (NonCached (..), Nonrepeating (..),
+                                                    arbitraryUnsafe, sublistN)
 
 {- A note on 'Arbitrary' instances
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -78,6 +86,36 @@ instance Nonrepeating PublicKey where
     nonrepeating n = map fst <$> sublistN n keys
 instance Nonrepeating SecretKey where
     nonrepeating n = map snd <$> sublistN n keys
+
+instance Arbitrary (NonCached SecretKey) where
+    arbitrary =
+        NonCached . snd .
+        deterministicKeyGen . BS.pack <$> vectorOf 32 arbitrary
+instance Arbitrary (NonCached PublicKey) where
+    arbitrary = toPublic <<$>> arbitrary
+
+encKeys :: [(PublicKey, EncryptedSecretKey, PassPhrase)]
+encKeys =
+    deterministic "enc keys" $
+    replicateM keysToGenerate $ do
+        pp <- getRandomBytes passphraseLength
+        let withPass (pk, sk) = (pk, sk, pp)
+        withPass <$> safeKeyGen pp
+
+-- perhaps having a datatype with Arbitrary instance would become more
+-- convenient here some day
+arbitraryEncSecretKey :: Gen (EncryptedSecretKey, PassPhrase)
+arbitraryEncSecretKey =
+    (\(_, esk, pp) -> (esk, pp)) <$> elements encKeys
+
+-- | Many crypto operations are faster with empty passphrase.
+-- This may be useful when test outcome most propably doesn't depend
+
+arbitraryMostlyUnencryptedKeys :: Gen (EncryptedSecretKey, PassPhrase)
+arbitraryMostlyUnencryptedKeys = frequency
+    [ (1, arbitraryEncSecretKey)
+    , (10, arbitrary <&> \sk -> (noPassEncrypt sk, emptyPassphrase))
+    ]
 
 -- Repeat the same for ADA redemption keys
 redemptionKeys :: [(RedeemPublicKey, RedeemSecretKey)]

@@ -25,6 +25,7 @@ module Test.Pos.Util
        , stopProperty
        , maybeStopProperty
        , splitIntoChunks
+       , expectedOne
        ) where
 
 import           Universum
@@ -158,3 +159,12 @@ splitIntoChunks maxSize items = do
     case nonEmpty chunk of
         Nothing      -> return []
         Just chunkNE -> (chunkNE :) <$> splitIntoChunks maxSize rest
+
+expectedOne :: Monad m => Text -> [a] -> PropertyM m a
+expectedOne desc = \case
+    [] ->  kickOut "expected at least one element, but list empty"
+    [x] -> pure x
+    _ ->   kickOut "expected one element, but list contains more elements"
+  where
+    kickOut err = stopProperty $ err <> "(" <> desc <> ")"
+

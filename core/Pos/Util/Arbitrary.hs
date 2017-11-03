@@ -1,9 +1,12 @@
+{-# LANGUAGE DeriveFunctor #-}
+
 -- | Common things used in `Pos.Crypto.Arbitrary` and `Pos.Util.Arbitrary`
 
 module Pos.Util.Arbitrary
        ( Nonrepeating (..)
        , ArbitraryUnsafe (..)
        , SmallGenerator (..)
+       , NonCached (..)
        , makeSmall
        , sublistN
        , arbitrarySizedS
@@ -81,6 +84,11 @@ arbitrarySizedSL n = BL.pack <$> vector n
 -- | Get something out of a quickcheck 'Gen' without having to do IO
 runGen :: Gen a -> a
 runGen g = unGen g (mkQCGen 31415926) 30
+
+-- | In case if `instance Arbitrary a` uses prebuilt pool of values,
+-- this type indicates that fresh value should be generated.
+newtype NonCached a = NonCached a
+    deriving (Eq, Show, Functor)
 
 {-| ArbitraryUnsafe class
     ~~~~~~~~~~~~~~~~~~~~~~~~

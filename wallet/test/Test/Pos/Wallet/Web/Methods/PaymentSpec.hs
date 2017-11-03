@@ -27,13 +27,14 @@ import           Pos.Wallet.Web.Methods.Payment (newPayment)
 import qualified Pos.Wallet.Web.State.State     as WS
 import           Pos.Wallet.Web.Util            (decodeCTypeOrFail,
                                                  getAccountAddrsOrThrow)
-import           Test.Pos.Util                  (assertProperty, maybeStopProperty,
-                                                 stopProperty, withDefConfigurations)
+import           Test.Pos.Util                  (assertProperty, expectedOne,
+                                                 maybeStopProperty, stopProperty,
+                                                 withDefConfigurations)
 
-import           Test.Pos.Wallet.Web.Mode       (WalletProperty, getSentTxs,
-                                                 walletPropertySpec)
+import           Test.Pos.Wallet.Web.Mode       (getSentTxs, walletPropertySpec)
 import           Test.Pos.Wallet.Web.Util       (deriveRandomAddress, expectedAddrBalance,
-                                                 importSomeWallets)
+                                                 importSomeWallets,
+                                                 mostlyEmptyPassphrases)
 
 
 -- TODO remove HasCompileInfo when MonadWalletWebMode will be splitted.
@@ -46,7 +47,7 @@ spec = withCompileInfo def $
 
 oneNewPaymentSpec :: (HasCompileInfo, HasConfigurations) => Spec
 oneNewPaymentSpec = walletPropertySpec oneNewPaymentDesc $ do
-    passphrases <- importSomeWallets
+    passphrases <- importSomeWallets mostlyEmptyPassphrases
     dstCAddr <- deriveRandomAddress passphrases
     let l = length passphrases
     rootsEnc <- lift myRootAddresses
@@ -67,12 +68,12 @@ oneNewPaymentSpec = walletPropertySpec oneNewPaymentDesc $ do
     txLinearPolicy <- lift $ (bvdTxFeePolicy <$> gsAdoptedBVData) <&> \case
         TxFeePolicyTxSizeLinear linear -> linear
         _                              -> error "unknown fee policy"
-    txAux <- expectedOne =<< lift getSentTxs
+    txAux <- expectedOne "tx" =<< lift getSentTxs
     TxFee fee <- lift (runExceptT $ txToLinearFee txLinearPolicy txAux) >>= \case
         Left er -> stopProperty $ "Couldn't compute tx fee by tx, reason: " <> pretty er
         Right x -> pure x
     let outAddresses = map (fst . view _TxOut) $ toList $ _txOutputs $ taTx txAux
-    changeAddr <- expectedOne (filter (/= dstAddr) outAddresses)
+    changeAddr <- expectedOne "change" (filter (/= dstAddr) outAddresses)
 
     -- Validate balances
     expectedAddrBalance dstAddr coins
@@ -88,12 +89,7 @@ oneNewPaymentSpec = walletPropertySpec oneNewPaymentDesc $ do
     -- expectedChangeAddresses
   where
     getAddress srcAccId =
-        lift . decodeCTypeOrFail . cwamId =<< expectedOne =<< lift (getAccountAddrsOrThrow WS.Existing srcAccId)
-    expectedOne :: [a] -> WalletProperty a
-    expectedOne []     = stopProperty "expected at least one element, but list empty"
-    expectedOne [x] = pure x
-    expectedOne (_:_)  = stopProperty "expected one element, but list contains more elements"
-
+        lift . decodeCTypeOrFail . cwamId =<< expectedOne "address" =<< lift (getAccountAddrsOrThrow WS.Existing srcAccId)
     oneNewPaymentDesc =
         "Send money from one own address to another; " <>
         "check balances validity for destination address, source address and change address; " <>
